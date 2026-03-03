@@ -28,3 +28,20 @@ class UserMostPurchase(User):
 
     def __str__(self):
         return str(self.username) + ' - ' + str(self.getTotalPurchases()) + ' movies bought'
+    
+class UserMostComment(User):
+    class Meta:
+        proxy = True
+        verbose_name = 'User w/ Most Comments'
+        verbose_name_plural = 'Users w/ Most Comments'
+
+    def getComments(self):
+        return self.review_set.all()
+    
+    @admin.display(description="Total comments")
+    def getTotalComments(self):
+        comments = self.getComments()
+        return len(comments)
+    
+    def __str__(self):
+        return str(self.username) + ' - ' + str(self.getTotalComments()) + ' comments'
