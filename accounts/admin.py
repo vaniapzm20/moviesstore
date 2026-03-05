@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import UserMostPurchase, UserMostComment
-from django.db.models import Value, Sum
+from django.db.models import Value, Sum, Count
 from django.db.models.functions import Coalesce
 
 # Register your models here.
@@ -25,7 +25,6 @@ class UserMostPurchaseAdmin(admin.ModelAdmin):
         )
 
         max_subquery = qs.values("item_count")[:1]
-        print(max_subquery)
         return qs.filter(item_count = max_subquery)
     
     def get_actions(self, request):
@@ -42,7 +41,17 @@ class UserMostCommentAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
 
-        qs = super().get_queryset(request).filter(is_staff = False, is_active = True).annotate(comment_count = Coalesce(Sum('review__id'), Value(0),)).order_by('-comment_count')
+        qs = super().get_queryset(
+            request
+        ).filter(
+            is_staff = False, 
+            is_active = True
+        ).annotate(
+            comment_count = Coalesce(
+                Count('review__id'), 
+                Value(0),
+            )
+        ).order_by('-comment_count')
 
         max_subquery = qs.values("comment_count")[:1]
 

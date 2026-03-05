@@ -17,13 +17,10 @@ class UserMostPurchase(User):
     def getTotalPurchases(self):
         purchases = 0
         orders = self.getOrders()
-        # print("Orders:", orders)
         for order in orders:
             items = order.getItems()
-            # print("Order:", order, "Items:", item)
             for item in items:
                 purchases += item.quantity
-        # print("Number of purchases:", purchases)
         return purchases
 
     def __str__(self):
