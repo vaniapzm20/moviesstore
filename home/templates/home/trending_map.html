@@ -1,0 +1,197 @@
+{% extends 'base.html' %}
+{% block content %}
+{% load static %}
+<div class="p-3">
+    <div class="row mb-3">
+        <div class="col">
+            <h2>Local popularity map</h2>
+    </div>
+    <div class="row g-3">
+        <div class="col-12 col-lg-4 order-2 order-lg-1">
+            <div class="card h-100">
+                <div class="card-header bg-dark text-white">
+                    <strong>Trending by region</strong>
+                </div>
+                <div class="card-body p-0">
+                    <div id="region-list" class="list-group list-group-flush" style="max-height: 60vh; overflow-y: auto;">
+                        <div id="region-list-loading" class="p-3 text-muted text-center">Loading regions…</div>
+                    </div>
+                    <div id="region-detail" class="p-3 border-top" style="display: none;">
+                        <h6 class="mb-2" id="region-detail-title"> Top 3 movies in <span id="region-detail-name"></span></h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped mb-0">
+                                <thead><tr><th>Movie</th><th class="text-end">Purchases</th></tr></thead>
+                                <tbody id="region-detail-movies"></tbody>
+                            </table>
+                        </div>
+                        <hr class="my-3">
+                        <h6 class="mb-2">Your purchases </h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped mb-0">
+                                <thead><tr><th>Movie</th><th class="text-end">Your qty</th></tr></thead>
+                                <tbody id="region-detail-my-purchases"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-8 order-1 order-lg-2">
+            <div class="card">
+                <div class="card-body p-0">
+                    <div id="map" style="height: 65vh; min-height: 400px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if template_data.google_maps_api_key %}
+<script>
+(function() {
+    var apiKey = '{{ template_data.google_maps_api_key|escapejs }}';
+    var apiUrl = '{% url "home.api_trending_regions" %}';
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function loadRegions() {
+        fetch(apiUrl)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                window.__trendingRegions = data.regions || [];
+                window.__myPurchases = data.my_purchases || [];
+                renderRegionList();
+                initMap();
+            })
+            .catch(function() {
+                document.getElementById('region-list-loading').textContent = 'Could not load regions.';
+            });
+    }
+
+    function renderRegionList() {
+        var listEl = document.getElementById('region-list');
+        var loading = document.getElementById('region-list-loading');
+        loading.style.display = 'none';
+        listEl.innerHTML = '';
+        var regions = window.__trendingRegions || [];
+        if (regions.length === 0) {
+            listEl.innerHTML = '<div class="p-3 text-muted text-center">No regions with purchases yet. Complete a purchase with a location to see trending by region.</div>';
+            return;
+        }
+        regions.forEach(function(r, idx) {
+            var label = r.city + ', ' + r.country;
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'list-group-item list-group-item-action';
+            btn.textContent = label;
+            btn.dataset.index = idx;
+            btn.addEventListener('click', function() {
+                selectRegion(idx);
+            });
+            listEl.appendChild(btn);
+        });
+    }
+
+    function selectRegion(index) {
+        var regions = window.__trendingRegions || [];
+        var r = regions[index];
+        if (!r) return;
+        document.querySelectorAll('#region-list .list-group-item').forEach(function(el) {
+            el.classList.remove('active');
+            if (parseInt(el.dataset.index, 10) === index) el.classList.add('active');
+        });
+        var detail = document.getElementById('region-detail');
+        detail.style.display = 'block';
+        var title = document.getElementById('region-detail-name');
+        var moviesTbody = document.getElementById('region-detail-movies');
+        var myTbody = document.getElementById('region-detail-my-purchases');
+        title.textContent = r.city + ', ' + r.country;
+        moviesTbody.innerHTML = '';
+        var trendingIds = {};
+        if (r.top_movies && r.top_movies.length) {
+            r.top_movies.forEach(function(m) {
+                trendingIds[m.id] = true;
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td>' + escapeHtml(m.name) + '</td><td class="text-end">' + m.count + '</td>';
+                moviesTbody.appendChild(tr);
+            });
+        } else {
+            moviesTbody.innerHTML = '<tr><td colspan="2" class="text-muted">No purchases in this region yet.</td></tr>';
+        }
+        myTbody.innerHTML = '';
+        var myPurchases = window.__myPurchases || [];
+        if (myPurchases.length) {
+            myPurchases.forEach(function(m) {
+                var matchNote = trendingIds[m.id] ? ' <span class="text-muted small">(also trending here)</span>' : '';
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td>' + escapeHtml(m.name) + matchNote + '</td><td class="text-end">' + m.count + '</td>';
+                myTbody.appendChild(tr);
+            });
+        } else {
+            myTbody.innerHTML = '<tr><td colspan="2" class="text-muted">You have no purchases yet.</td></tr>';
+        }
+    }
+
+    function initMap() {
+        var regions = window.__trendingRegions || [];
+        var center = { lat: 20, lng: 0 };
+        var hasAny = false;
+        if (regions.length) {
+            var sumLat = 0, sumLng = 0, n = 0;
+            regions.forEach(function(r) {
+                if (r.lat !== 0 || r.lng !== 0) {
+                    sumLat += r.lat;
+                    sumLng += r.lng;
+                    n++;
+                    hasAny = true;
+                }
+            });
+            if (n) {
+                center = { lat: sumLat / n, lng: sumLng / n };
+            }
+        }
+        var map = new google.maps.Map(document.getElementById('map'), {
+            zoom: hasAny ? 3 : 2,
+            center: center,
+            mapTypeControl: true,
+            fullscreenControl: true,
+        });
+        regions.forEach(function(r, idx) {
+            if (r.lat === 0 && r.lng === 0) return;
+            var marker = new google.maps.Marker({
+                position: { lat: r.lat, lng: r.lng },
+                map: map,
+                title: r.city + ', ' + r.country,
+            });
+            marker.addListener('click', function() {
+                selectRegion(idx);
+            });
+        });
+    }
+
+    function bootstrapMap() {
+        if (typeof google !== 'undefined' && google.maps) {
+            loadRegions();
+            return;
+        }
+        var s = document.createElement('script');
+        s.src = 'https://maps.googleapis.com/maps/api/js?key=' + apiKey + '&callback=bootstrapMap';
+        s.async = true;
+        s.defer = true;
+        document.head.appendChild(s);
+    }
+    window.bootstrapMap = bootstrapMap;
+    bootstrapMap();
+})();
+</script>
+{% else %}
+<script>
+document.getElementById('region-list-loading').textContent = 'Google Maps API key not set. Set GOOGLE_MAPS_API_KEY in settings.';
+</script>
+{% endif %}
+{% endblock content %}

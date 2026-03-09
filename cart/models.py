@@ -7,7 +7,12 @@ class Order(models.Model):
     date = models.DateTimeField(auto_now_add=True)
     user = models.ForeignKey(User,
         on_delete=models.CASCADE)
-    
+    city = models.CharField(max_length=255, null=True, blank=True)
+    country= models.CharField(max_length=255, null=True, blank=True)
+    place_id = models.CharField(max_length=512, null=True, blank=True)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+
     def getItems(self):
         return Item.objects.filter(order=self)
     

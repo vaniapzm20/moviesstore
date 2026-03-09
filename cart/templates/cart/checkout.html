@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% block content %}
+{% load cart_filters %}
+<div class="p-3">
+    <div class="row mt-3">
+        <div class="col mx-auto mb-3">
+            <h2>Checkout</h2>
+            <hr />
+        </div>
+    </div>
+    {% if messages %}
+    <div class="row">
+        <div class="col">
+            {% for message in messages %}
+            <div class="alert alert-danger" role="alert">{{ message }} </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    <div class="row m-1">
+      <table class="table table-bordered table-striped
+        text-center">
+        <thead>
+          <tr>
+            <th scope="col">ID</th>
+            <th scope="col">Name</th>
+            <th scope="col">Price</th>
+            <th scope="col">Quantity</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for movie in template_data.movies_in_cart %}
+          <tr>
+            <td>{{ movie.id }}</td>
+            <td>{{ movie.name }}</td>
+            <td>${{ movie.price }}</td>
+            <td>{{ request.session.cart|get_quantity:movie.id }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-lg-6">
+            <form method="post" id="checkout-form">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="location-input" class="form-label">
+                        <strong> Your purchase location (city,country)
+                            <span class="text-danger">*</span>
+                        </strong>
+                    </label>
+                    <input type="text"
+                        class="form-control"
+                        id="location-input"
+                        placeholder="Insert the city or country of purchase"
+                        autocomplete="off"
+                        required>
+                        <input type="hidden" name="place_id" id="place_id" value="">
+                        <input type="hidden" name="city" id="city" value="">
+                        <input type="hidden" name="country" id="country" value="">
+                        <input type="hidden" name="latitude" id="latitude" value="">
+                        <input type="hidden" name="longitude" id="longitude" value="">
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <button type="submit" class="btn bg-dark text-white" id="submit-btn" disabled>Complete Purchase</button>
+                    <a href="{% url 'cart.index' %}" class="btn btn-outline-secondary">Back to cart</a>
+                </div>
+            </form>
+        </div>
+        <div class="col-lg-6 text-end">
+            <p class="btn btn-outline-secondary mb-2"><b>Total
+          to pay:</b> ${{ template_data.cart_total }}</p>
+        </div>
+    </div>
+</div>
+
+<script src="https://maps.googleapis.com/maps/api/js?key={{ template_data.google_maps_api_key }}&libraries=places&callback=initAutocomplete" async defer></script>
+<script>
+    function initAutocomplete() {
+        var input = document.getElementById('location-input');
+        var options = {
+            types: ['(regions)'],
+            fields: ['place_id', 'address_components', 'geometry']
+        };
+        var autocomplete = new google.maps.places.Autocomplete(input, options);
+        autocomplete.addListener('place_changed', function(){
+            var place = autocomplete.getPlace();
+            if(!place.place_id || !place.address_components){
+                return;
+            }
+            var city = ''
+            var country = ''
+
+            for (i = 0; i < place.address_components.length; i++) {
+                var c = place.address_components[i];
+                if (c.types.indexOf('locality') !== -1) {
+                    city = c.long_name;
+                }
+                if (c.types.indexOf('country') !== -1) {
+                    country = c.long_name;
+                }
+                if (c.types.indexOf('administrative_area_level_1') !== -1 && !city) {
+                    city = c.long_name;
+                }
+            }
+            if (!city && place.address_components.length) {
+                city = place.address_components[0].long_name;
+            }
+            document.getElementById('place_id').value = place.place_id;
+            document.getElementById('city').value = city;
+            document.getElementById('country').value = country;
+            if (place.geometry && place.geometry.location) {
+                document.getElementById('latitude').value = place.geometry.location.lat();
+                document.getElementById('longitude').value = place.geometry.location.lng();
+            }
+            document.getElementById('submit-btn').disabled = false;
+        });
+    }
+</script>
+{% endblock content %}
